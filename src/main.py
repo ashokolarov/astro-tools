@@ -1,31 +1,21 @@
 from nbody import *
-from constants import *
+from data import *
 from tools import *
 
 # Bodies to propagate
-satellites = [EARTH, MOON, APOLLO]
+satellites = [IRMAK]
+koe = [EARTH['radius'] + 5000e3, 0.1, 100, 200, 90, 0, 0, 0]
 
-# Apollo
-alt = 30000e3
-h = alt + EARTH['radius']
-vel = vorbital(EARTH['mass'], h)
-
-# Moon
-vel_moon = vorbital(EARTH['mass'], EARTH_MOON_DISTANCE)
 
 # Initial conditions
-init = [  0, EARTH_MOON_DISTANCE, h,     # x-position
-          0, 0, 0,     # y-position                  
-          0, 0, 0,     # z-position
-          0, 0, 0,     # x-velocity
-          0, vel, vel_moon,     # y-velocity  
-          0, 0, 0      # z-velocity  
-]
+init = KOE_TO_CSV(EARTH['mass'], *koe)
 
-T_TOTAL = 24 * 60 * 60  # [1 day]
+
+T_TOTAL = 4 * 60 * 60  
 dt = 5.                # Timestep [s]
 N  = int(T_TOTAL / dt)  # Number of nodes
 
-sim = NBodyPropagator(init, satellites, N, dt)
+sim = TwoBodyPropagator(init, EARTH, satellites, N, dt)
 sim.propagate()
 sim.plot()
+
