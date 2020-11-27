@@ -64,10 +64,6 @@ class NBodyPropagator(Propagator):
         fig = plt.figure(figsize=(10, 8))
         ax = fig.add_subplot(111, projection='3d')
 
-        # Plot initial positions
-        #for i in range(self.n_body):
-            #ax.plot(self.u[0,:i], self.u[0,:i+2], self.u[0,:i+4], marker="x")
-
         # Plot trajectories
         for i in range(self.n_body):
             ax.plot(self.u[:,i], self.u[:,i+2], self.u[:,i+4], label=f"{self.names[i]}")
@@ -82,27 +78,30 @@ class NBodyPropagator(Propagator):
 
 class TwoBodyPropagator(Propagator):
 
-    def __init__(self, init, bodies, N, dt):
-        super().__init__(bodies, N, dt)
-        self.u = np.zeros((N, 6), dtype=np.float64)
+    def __init__(self, init, central_body, satellites, N, dt):
+        super().__init__(satellites, N, dt)
+        self.central = central_body
+        self.M_Multibody = 6 * (self.n_body)
+        self.u = np.zeros((N, self.M_Multibody), dtype=np.float64)
         self.u[0, :] = init
 
     def f_twobody(self, u):
-        x = u[0]
-        y = u[1]
-        z = u[2]
-        xdot = u[3]
-        ydot = u[4]
-        zdot = u[5]
-        f = np.zeros(6)
-        f[0] = xdot
-        f[1] = ydot
-        f[2] = zdot
-        r = np.sqrt( x**2 + y**2 + z**2 )
-        f[3] = -G*self.masses[0]*x/r**3
-        f[4] = -G*self.masses[0]*y/r**3
-        f[5] = -G*self.masses[0]*z/r**3
-        return f
+        x    = u[0:self.n_body]
+        y    = u[self.n_body:2*self.n_body]
+        z    = u[2*self.n_body:3*self.n_body]
+        xdot = u[3*self.n_body:4*self.n_body]
+        ydot = u[4*self.n_body:5*self.n_body]
+        zdot = u[5*self.n_body:]
+        f = np.zeros((self.n_body,6))
+        f[:,0] = xdot
+        f[:,1] = ydot
+        f[:,2] = zdot
+        for i in range(0, self.n_body):
+            r = np.sqrt( (x[i])**2 + (y[i])**2 + (z[i])**2 )
+            f[i,3] = -G*self.central['mass']*x[i]/r**3
+            f[i,4] = -G*self.central['mass']*y[i]/r**3
+            f[i,5] = -G*self.central['mass']*z[i]/r**3
+        return f.T.flatten()
 
     def propagate(self):
         for i in range(self.N - 1):
@@ -112,11 +111,13 @@ class TwoBodyPropagator(Propagator):
         fig = plt.figure(figsize=(10, 8))
         ax = fig.add_subplot(111, projection='3d')
 
-        x,y,z = create_sphere(self.bodies[0]["radius"])
-        ax.plot_surface(x, y, z, color='b')
+        # Plot Central Body
+        x,y,z = create_sphere(self.central["radius"])
+        ax.plot_surface(x, y, z, cmap='GnBu')
 
-        ax.plot(self.u[0,0], self.u[0,1], self.u[0,2], marker='o', label="Inital Position")
-        ax.plot(self.u[:,0], self.u[:,1], self.u[:,2], label=f"Trajectory")
+        # Plot Trajectories
+        for i in range(self.n_body):
+            ax.plot(self.u[:,i], self.u[:,i+self.n_body], self.u[:,i+2*self.n_body], label=f"Trajectory {self.names[i]}")
 
         lim = np.max(np.abs(self.u[:,:3]))
         ax.set_xlim([-lim, lim])

@@ -1,5 +1,6 @@
 # Literature
 *.pdf
+literature/
 
 # Jupyter notebooks
 *.ipynb
