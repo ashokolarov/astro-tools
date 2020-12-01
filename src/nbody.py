@@ -1,12 +1,32 @@
 import numpy as np
 from constants import *
 from tools import *
-from plotter import * 
+from plotter import *
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+plt.style.use('seaborn')
 
 
 class Propagator():
+    """
+    Propagator class used to store general data about the simulation and propagate it.
+    Params:
+        n_body - number of bodies in the sim
+        bodies - list of dictionary holding the bodies included in the sim
+        N - number of timesteps
+        dt - size of timestep
+        Tmax - total time of simulation
+    """
 
     def __init__(self, bodies, N, dt):
+        """
+        Constructor
+        Args:
+            bodies - list of dictionaries, holds the bodies to be propagated
+            N - int, number of timesteps
+            dt - float, size of timestep
+        """
         self.n_body = len(bodies)
         self.bodies = bodies
         self.N = N
@@ -15,83 +35,85 @@ class Propagator():
 
     def rk4(self, f, u):
         """
-        Runge-Kutta explicit 4-stage scheme - 1 step.
-        
+        Runge-Kutta explicit 4-stage scheme - 1
           t  - time
           u  - solution at t
         Return: approximation of y at t+dt.
         """
         k1 = f(u)
-        k2 = f(u + self.dt*k1/2)
-        k3 = f(u + self.dt*k2/2)
-        k4 = f(u + self.dt*k3) 
-        return u + self.dt/6 * (k1 + 2*k2 + 2*k3 + k4)
+        k2 = f(u + self.dt * k1 / 2)
+        k3 = f(u + self.dt * k2 / 2)
+        k4 = f(u + self.dt * k3)
+        return u + self.dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 class TwoBodyPropagator(Propagator):
 
-    def __init__(self, init, central_body, satellites, N, dt):
+    def __init__(self, init, central_body, satellites, pertubations, N, dt):
+        """
+        Constructor
+        """
         super().__init__(satellites, N, dt)
         self.central = central_body
-        self.M_Multibody = 6 * (self.n_body)
+        self.pertubations = pertubations
+        self.M_Multibody = 6 * self.n_body
         self.u = np.zeros((N, self.M_Multibody), dtype=np.float64)
         self.u[0, :] = init
 
     @classmethod
-    def from_koe(cls, koe, central_body, satellites, N, dt):
+    def from_koe(cls, koe, central_body, satellites, pertubations, N, dt):
         num_sat = len(satellites)
         states = []
         for i in range(num_sat):
             u = KOE_TO_CSV(central_body['mass'], *koe[i])
             states.append(u)
         init = np.array(states).flatten('F')
-        return cls(init, central_body, satellites, N, dt)
+        return cls(init, central_body, satellites, pertubations, N, dt)
 
-    @classmethod
-    def from_geometry(cls, geometry, central_body, satellites, N, dt):
-        num_sat = len(satellites)
-        states = []
-        for i in range(num_sat):
-            v_orbital = vorbital(central_body['mass'], geometry[i][0])
-            theta = geometry[i][1]
-            
     def f_twobody(self, u):
-        x    = u[0:self.n_body]
-        y    = u[self.n_body:2*self.n_body]
-        z    = u[2*self.n_body:3*self.n_body]
-        xdot = u[3*self.n_body:4*self.n_body]
-        ydot = u[4*self.n_body:5*self.n_body]
-        zdot = u[5*self.n_body:]
-        f = np.zeros((self.n_body,6))
-        f[:,0] = xdot
-        f[:,1] = ydot
-        f[:,2] = zdot
+        x = u[0:self.n_body]
+        y = u[self.n_body:2 * self.n_body]
+        z = u[2 * self.n_body:3 * self.n_body]
+        xdot = u[3 * self.n_body:4 * self.n_body]
+        ydot = u[4 * self.n_body:5 * self.n_body]
+        zdot = u[5 * self.n_body:]
+        f = np.zeros((self.n_body, 6))
+        f[:, 0] = xdot
+        f[:, 1] = ydot
+        f[:, 2] = zdot
         for i in range(0, self.n_body):
-            r = np.sqrt( (x[i])**2 + (y[i])**2 + (z[i])**2 )
-            f[i,3] = -G*self.central['mass']*x[i]/r**3
-            f[i,4] = -G*self.central['mass']*y[i]/r**3
-            f[i,5] = -G*self.central['mass']*z[i]/r**3
-        return f.T.flatten()
+            r = np.sqrt((x[i]) ** 2 + (y[i]) ** 2 + (z[i]) ** 2)
+            f[i, 3] = (-G * self.central['mass'] * x[i] / r ** 3)
+            f[i, 4] = -G * self.central['mass'] * y[i] / r ** 3
+            f[i, 5] = -G * self.central['mass'] * z[i] / r ** 3
 
-    def 
+            if self.pertubations['J2'] == True:
+                R = (x[i]*x[i] + y[i]*y[i] + z[i]*z[i]) ** 0.5
+                coeff = (3 * J2 * self.central['mass'] * G * self.central['radius'] ** 2) / (2 * R ** 5)
+                f[i, 3] += coeff * (5 * (z[i]**2 / R ** 2) - 1) * x[i]
+                f[i, 4] += coeff * (5 * (z[i]**2 / R ** 2) - 1) * y[i]
+                f[i, 5] += coeff * (5 * (z[i]**2 / R ** 2) - 3) * z[i]
+
+        return f.T.flatten()
 
     def propagate(self):
         for i in range(self.N - 1):
-            self.u[i+1,:] = self.rk4(self.f_twobody, self.u[i])
-        
+            self.u[i + 1, :] = self.rk4(self.f_twobody, self.u[i])
+
     def plot(self):
         fig = plt.figure(figsize=(14, 10))
         ax = fig.add_subplot(111, projection='3d')
 
         # Plot Central Body
-        x,y,z = create_sphere(self.central["radius"])
-        sphere = ax.plot_surface(x, y, z, cmap='GnBu')
-        
+        x, y, z = create_sphere(self.central["radius"])
+        ax.plot_surface(x, y, z, cmap='GnBu')
+
         # Plot Trajectories
         for i in range(self.n_body):
-            ax.plot(self.u[0,i], self.u[0,i+self.n_body], self.u[0,i+2*self.n_body], marker='x', color='r')
-            ax.plot(self.u[:,i], self.u[:,i+self.n_body], self.u[:,i+2*self.n_body], label=f"Trajectory {self.bodies[i]['name']}")
+            ax.plot(self.u[0, i], self.u[0, i + self.n_body], self.u[0, i + 2 * self.n_body], marker='x', color='r')
+            ax.plot(self.u[:, i], self.u[:, i + self.n_body], self.u[:, i + 2 * self.n_body],
+                    label=f"Trajectory {self.bodies[i]['name']}")
 
-        lim = np.max(np.abs(self.u[:,:3]))
+        lim = np.max(np.abs(self.u[:, :3]))
         ax.set_xlim([-lim, lim])
         ax.set_ylim([-lim, lim])
         ax.set_zlim([-lim, lim])
@@ -104,71 +126,3 @@ class TwoBodyPropagator(Propagator):
         plt.show()
 
 
-"""
-TO BE FIXED
-
-class NBodyPropagator(Propagator):
-
-    def __init__(self, init, bodies, N, dt):
-        super().__init__(bodies,N,dt)
-        self.M_Multibody = 6 * self.n_body
-        self.u = np.zeros((N, self.M_Multibody), dtype=np.float64)
-        self.u[0, :] = init
-
-    def f_multibody(self, u):
-        x    = u[0:self.n_body]
-        y    = u[self.n_body:2*self.n_body]
-        z    = u[2*self.n_body:3*self.n_body]
-        xdot = u[3*self.n_body:4*self.n_body]
-        ydot = u[4*self.n_body:5*self.n_body]
-        zdot = u[5*self.n_body:]
-        f = np.zeros((self.n_body,6))
-        f[:,0] = xdot
-        f[:,1] = ydot
-        f[:,2] = zdot
-        for i in range(self.n_body):
-            for j in range(self.n_body):
-                if i != j:
-                    r = np.sqrt( (x[j]-x[i])**2 + (y[j]-y[i])**2 + (z[j] - z[i])**2 )
-                    f[i,3] += G*self.masses[j]*(x[j]-x[i])/r**3
-                    f[i,4] += G*self.masses[j]*(y[j]-y[i])/r**3
-                    f[i,5] += G*self.masses[j]*(z[j]-z[i])/r**3
-        return f.T.flatten()
-
-    def propagate(self):
-        for i in range(self.N - 1):
-            self.u[i+1,:] = self.rk4(self.f_multibody, self.u[i])
-    
-    def plot(self):
-        fig = plt.figure(figsize=(10, 8))
-        ax = fig.add_subplot(111, projection='3d')
-
-        # Plot trajectories
-        for i in range(self.n_body):
-            ax.plot(self.u[:,i], self.u[:,i+2], self.u[:,i+4], label=f"{self.names[i]}")
-
-        limit = np.max(np.abs(self.u[:,3]))
-        ax.set_xlim([-limit, limit])
-        ax.set_ylim([-limit, limit])
-        ax.set_zlim([-limit, limit])
-
-        plt.legend()
-        plt.show()
-"""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
