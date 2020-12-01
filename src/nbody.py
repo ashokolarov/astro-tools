@@ -1,5 +1,6 @@
 import numpy as np
 from constants import *
+from tools import *
 from plotter import * 
 
 
@@ -35,6 +36,24 @@ class TwoBodyPropagator(Propagator):
         self.u = np.zeros((N, self.M_Multibody), dtype=np.float64)
         self.u[0, :] = init
 
+    @classmethod
+    def from_koe(cls, koe, central_body, satellites, N, dt):
+        num_sat = len(satellites)
+        states = []
+        for i in range(num_sat):
+            u = KOE_TO_CSV(central_body['mass'], *koe[i])
+            states.append(u)
+        init = np.array(states).flatten('F')
+        return cls(init, central_body, satellites, N, dt)
+
+    @classmethod
+    def from_geometry(cls, geometry, central_body, satellites, N, dt):
+        num_sat = len(satellites)
+        states = []
+        for i in range(num_sat):
+            v_orbital = vorbital(central_body['mass'], geometry[i][0])
+            theta = geometry[i][1]
+            
     def f_twobody(self, u):
         x    = u[0:self.n_body]
         y    = u[self.n_body:2*self.n_body]
@@ -52,6 +71,8 @@ class TwoBodyPropagator(Propagator):
             f[i,4] = -G*self.central['mass']*y[i]/r**3
             f[i,5] = -G*self.central['mass']*z[i]/r**3
         return f.T.flatten()
+
+    def 
 
     def propagate(self):
         for i in range(self.N - 1):

@@ -12,15 +12,15 @@ def vorbital(m, R):
     
     return np.sqrt(G * m / R)
 
-def KOE_TO_CSV(m, a, e, w, om, i, M0, t0, t):
+def KOE_TO_CSV(m, a, e, i, w, om, M0, t0, t):
     """
     Compile Cartesian State Vector from Keplerian Orbit Elements
     m - Mass of orbited body [kg]
     a - Semi-major axis [m]
     e - Eccentricity, 0<=e<=1 [-]
+    i - Inclination [deg]
     w - Argument of periapsis [deg]
     om - Longitude of ascending node [deg]
-    i - Inclination [deg]
     M0 - Mean anomaly at epoch t0 [deg]
     t0 - Epoch time [s]
     t - Considered epoch [s]
@@ -67,48 +67,51 @@ def KOE_TO_CSV(m, a, e, w, om, i, M0, t0, t):
     return np.array([rx,ry,rz,rx_dot,ry_dot,rz_dot], dtype=np.float64)
 
 def CSV_TO_KOE(m, u):
-    """
-    Compile Cartesian State Vector from Keplerian Orbit Elements
-    m - Mass of orbited body [kg]
-    u - State vector [x,y,z,xdot,ydot,zdot]
-    """
-    
     mu = G * m
     
     r = u[:3]
     v = u[3:]
 
     h = np.cross(r,v)
-    K = np.array([0,0,1])
-    nhat = np.cross(K, h)
+    h_norm = np.linalg.norm(h)
 
-    norm_r = np.linalg.norm(r)
-    norm_v = np.linalg.norm(v)
+    r_norm = np.linalg.norm(r)
+    v_norm = np.linalg.norm(v)
 
-    e_vec = (((norm_v*norm_v - mu/norm_r) * r) - (np.dot(r,v)*v)) / mu
-    e = np.linalg.norm(e_vec)
+    E = ((v_norm*v_norm)/2) - (mu/r)
 
-    E = norm_v*norm_v/2 - mu/norm_r
-    a = -mu / (2 * E)
-    p = a * (1 - e*e)
+    a = -mu / (2*E)
+    e = (1 - ( (h*h) / (a * mu)))**0.5
 
-    norm_h = np.linalg.norm(h)
-    norm_n = np.linalg.norm(nhat)
+    i = np.arccos(h[2]/h_norm)
+    om = np.arctan2(h[0], -h[1])
+
+    p = a * (1 - e * e)
+    v = np.arctan2(np.sqrt(p/mu) * np.dot(v,r), p - r_norm)
+
+    wv = np.arctan2(r[2]/np.sin(i), r[0]*np.cos(om) + r[1]*np.sin(om))
+    w = wv - v
+
+    EC_ANOMALY = 2*np.arctan((((1-e)/(1+e))**0.5) * np.tan(v/2))
+    M = EC_ANOMALY - e * np.sin(EC_ANOMALY)
+
+    return [a, e, i, w, om, M]
+
+
+
+
+
+
+
+
+
+
+
+
     
-    i = np.arccos(h[2] / norm_h)
-    om = np.arccos(nhat[0] / norm_n)
-    if nhat[1] < 0:
-        om = 2 * np.pi - om
-        
-    w = np.arccos(np.dot(nhat, e_vec) / (norm_n * e))
-    if e_vec[1] < 0:
-        w = 2 * np.pi - w
 
-    M = np.arccos(np.dot(e_vec, r) / (e * norm_r))
-    if np.dot(r,v) < 0:
-        M = 2 * np.pi - M
+    
 
-    return [a, e, w, om, i, M]
     
         
     
