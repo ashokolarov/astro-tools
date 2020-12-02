@@ -8,3 +8,5 @@ literature/
 
 # Python bytecode
 __pycache__/
+
+.idea/
