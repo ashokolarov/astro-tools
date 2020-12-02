@@ -32,6 +32,7 @@ class Propagator():
         self.N = N
         self.dt = dt
         self.Tmax = N * dt
+        self.run = True
 
     def rk4(self, f, u):
         """
@@ -48,26 +49,26 @@ class Propagator():
 
 class TwoBodyPropagator(Propagator):
 
-    def __init__(self, init, central_body, satellites, pertubations, N, dt):
+    def __init__(self, init, central_body, satellites, properties, N, dt):
         """
         Constructor
         """
         super().__init__(satellites, N, dt)
         self.central = central_body
-        self.pertubations = pertubations
+        self.properties = properties
         self.M_Multibody = 6 * self.n_body
         self.u = np.zeros((N, self.M_Multibody), dtype=np.float64)
         self.u[0, :] = init
 
     @classmethod
-    def from_koe(cls, koe, central_body, satellites, pertubations, N, dt):
+    def from_koe(cls, koe, central_body, satellites, properties, N, dt):
         num_sat = len(satellites)
         states = []
         for i in range(num_sat):
             u = KOE_TO_CSV(central_body['mass'], *koe[i])
             states.append(u)
         init = np.array(states).flatten('F')
-        return cls(init, central_body, satellites, pertubations, N, dt)
+        return cls(init, central_body, satellites, properties, N, dt)
 
     def f_twobody(self, u):
         x = u[0:self.n_body]
@@ -81,23 +82,40 @@ class TwoBodyPropagator(Propagator):
         f[:, 1] = ydot
         f[:, 2] = zdot
         for i in range(0, self.n_body):
-            r = np.sqrt((x[i]) ** 2 + (y[i]) ** 2 + (z[i]) ** 2)
-            f[i, 3] = (-G * self.central['mass'] * x[i] / r ** 3)
-            f[i, 4] = -G * self.central['mass'] * y[i] / r ** 3
-            f[i, 5] = -G * self.central['mass'] * z[i] / r ** 3
+            R = np.sqrt((x[i]) ** 2 + (y[i]) ** 2 + (z[i]) ** 2)
+            alt = R - self.central['radius']
+            f[i, 3] = -G * self.central['mass'] * x[i] / R ** 3
+            f[i, 4] = -G * self.central['mass'] * y[i] / R ** 3
+            f[i, 5] = -G * self.central['mass'] * z[i] / R ** 3
 
-            if self.pertubations['J2'] == True:
-                R = (x[i]*x[i] + y[i]*y[i] + z[i]*z[i]) ** 0.5
+            if self.properties['J2'] == True:
                 coeff = (3 * J2 * self.central['mass'] * G * self.central['radius'] ** 2) / (2 * R ** 5)
                 f[i, 3] += coeff * (5 * (z[i]**2 / R ** 2) - 1) * x[i]
                 f[i, 4] += coeff * (5 * (z[i]**2 / R ** 2) - 1) * y[i]
                 f[i, 5] += coeff * (5 * (z[i]**2 / R ** 2) - 3) * z[i]
 
+            if self.properties['Drag'] == True:
+                rho = earth_rho(alt)
+                r = np.array([x[i], y[i], z[i]])
+                v = np.array([xdot[i], ydot[i], zdot[i]])
+                v_rel = v - np.cross(self.central['rot_vec'], r)
+                speed = np.linalg.norm(v_rel)
+                a_drag = -v_rel*0.5*rho*speed*self.bodies[i]['Cd']*self.bodies[i]['A'] / self.bodies[i]['mass']
+                f[i, 3:6] += a_drag
+
+            if alt < self.properties['min_alt'] and self.properties['exit_upon_stopcondition']:
+                print(f"{self.bodies[i]['name']} has re-entered {self.central['name']} and crashed.")
+                self.run = False
+
         return f.T.flatten()
 
     def propagate(self):
         for i in range(self.N - 1):
-            self.u[i + 1, :] = self.rk4(self.f_twobody, self.u[i])
+            if self.run:
+                self.u[i + 1, :] = self.rk4(self.f_twobody, self.u[i])
+            else:
+                self.u = self.u[:i]
+                break
 
     def plot(self):
         fig = plt.figure(figsize=(14, 10))

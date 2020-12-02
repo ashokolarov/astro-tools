@@ -3,19 +3,22 @@ from data import *
 
 # Bodies to propagate
 central_body = EARTH
-satellites = [MOON]
+satellites = [ISS]
 
 # Keplerian orbital elements of sats
-koe = [[EARTH_MOON_DISTANCE, 0.0, 0, 0, 0, 0, 0, 0]]
+koe = [[EARTH['radius'] + 3590e3, 0.032, 87.87, 53.39, 227.9, 0.0]]
 
-pertubations = {
+properties = {
        'J2' : False,
+       'Drag' : False,
+       'min_alt' : 200e3,
+       'exit_upon_stopcondition' : False
 }
 
-T_TOTAL = 7 * 24 * 60 * 60
-dt = 30.                # Timestep [s]
-N  = int(T_TOTAL / dt)  # Number of nodes
+T_TOTAL = 24 * 60 * 60
+dt = 5.                # Time-step [s]
+N = int(T_TOTAL / dt)   # Number of nodes
 
-sim = TwoBodyPropagator.from_koe(koe, central_body, satellites, pertubations, N, dt)
+sim = TwoBodyPropagator.from_koe(koe, central_body, satellites, properties, N, dt)
 sim.propagate()
 sim.plot()
