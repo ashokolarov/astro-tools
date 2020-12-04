@@ -18,6 +18,7 @@ def KOE_TO_CSV(m, a, e, i, w, om, MA):
     i *= d2r
     w *= d2r
     om *= d2r
+    MA *= d2r
 
     n = np.sqrt(mu / a ** 3)
 
@@ -49,6 +50,19 @@ def KOE_TO_CSV(m, a, e, i, w, om, MA):
     return [X, Y, Z, Xdot, Ydot, Zdot]
 
 def CSV_TO_KOE(m, u):
+    """
+    Convert a Cartesian State Vector to a set of Keplerian orbital elements.
+        m - mass of orbited body [kg]
+        u - state vector holding x,y,z,xdot,ydot and zdot [m], [m/s]
+
+    Return:
+        a - Semi-major axis [m]
+        e - Eccentricity, 0<=e<=1 [-]
+        i - Inclination [deg]
+        w - Argument of periapsis [deg]
+        om - Longitude of ascending node [deg]
+        MA - Mean Anomaly of the body [deg]
+    """
     mu = G * m
     r = u[:3]
     v = u[3:]
@@ -78,10 +92,10 @@ def CSV_TO_KOE(m, u):
     if np.dot(r,v) < 0:
         nu = 2*np.pi - nu
 
-    EA = 2 * np.arctan(np.sqrt((1-e_norm)/(1+e_norm) * np.tan(nu/2)))
+    EA = 2 * np.arctan(np.sqrt((1-e_norm)/(1+e_norm) * abs(np.tan(nu/2))))
     MA = EA - e_norm * np.sin(EA)
 
-    return [a,e_norm,i*r2d,w*r2d,om*r2d,MA]
+    return [a,e_norm,i*r2d,w*r2d,om*r2d,MA*r2d]
 
 
 def v_circ(m, R):
@@ -136,7 +150,6 @@ def get_ra(a, e):
     Return: apoapsis distance [m]
         """
     return a * (1 + e)
-
 
 """
 Coefficients of polynomials, used to determine air density at altitudes between 200km and 1000km.
