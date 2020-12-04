@@ -209,16 +209,19 @@ class TwoBodyPropagator(Propagator):
         #ax4.ticklabel_format(useOffset='False')
         ax4.plot(koe[:, 6], koe[:, 3])
         ax4.set_title('Argument of periapsis [$^\circ$]')
+        ax4.set_xlabel('Time [h]')
         ax4.grid(True)
 
         #ax5.ticklabel_format(useOffset='False')
         ax5.plot(koe[:, 6], koe[:, 4])
         ax5.set_title('Longitude of ascending node [$^\circ$]')
+        ax5.set_xlabel('Time [h]')
         ax5.grid(True)
-
+        
         #ax6.ticklabel_format(useOffset='False')
         ax6.plot(koe[:, 6], koe[:, 5])
         ax6.set_title('Mean anomaly [$^\circ$]')
+        ax6.set_xlabel('Time [h]')
         ax6.grid(True)
 
 
