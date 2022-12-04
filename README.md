@@ -7,10 +7,6 @@ Currently implemented pertubations:
 2. Aerodynamic drag 
 3. N-body pertubations
 
-To be implemented:
-
-*Solar radiation pressure
-
 
 #### Some of the simple usecases include:
 
